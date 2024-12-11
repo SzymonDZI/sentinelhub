@@ -44,7 +44,7 @@ class SatelliteDataDownloader:
         )
 
         image = request.get_data()[0]
-        return np.clip(image / 3000, 0, 1)
+        return np.clip(image / 200, 0, 1), time_interval
 
     def save_image(self, image, filename="output_image.tiff"):
         os.makedirs("output", exist_ok=True)
@@ -52,9 +52,10 @@ class SatelliteDataDownloader:
         plt.imsave(filepath, image)
         print(f"Zdjęcie zapisano jako {filepath}")
 
-    def display_image(self, image):
+    def display_image(self, image, date_range):
         plt.figure(figsize=(10, 10))
         plt.imshow(image)
         plt.axis("off")
         plt.title("Zdjęcie Satelitarne (Kolory Naturalne)")
+
         plt.show()
