@@ -14,10 +14,5 @@ def main():
     print(f"Współrzędne: {selector.selected_coords}")
     print(f"Daty: {selector.start_date} do {selector.end_date}")
 
-    # Test bbox
-    lat, lon = selector.selected_coords
-    bbox = BBox([lon - 0.05, lat - 0.05, lon + 0.05, lat + 0.05], crs="EPSG:4326")
-    print(f"BBOX: {bbox}")
-
 if __name__ == "__main__":
     main()
