@@ -43,9 +43,9 @@ class MapAndDateSelector:
             print(f"Rozpoczynam analizę dla współrzędnych: {self.selected_coords} i zakresu dat: {self.start_date} - {self.end_date}")
 
             downloader = SatelliteDataDownloader(
-                instance_id='3463381a-2429-4be7-a992-4238930c44a6',
-                client_id='bd25de5b-c246-4c2a-bffa-0142d1dbb16c',
-                client_secret='4bkP2kZ7rNin8mB6VdWsTYQdjwqFIUig'
+                instance_id='',
+                client_id='',
+                client_secret=''
             )
 
             lat, lon = self.selected_coords
