@@ -1,4 +1,5 @@
 import tkinter as tk
+from tkinter import ttk
 from tkintermapview import TkinterMapView
 from tkcalendar import DateEntry
 from satellite_downloader import SatelliteDataDownloader
@@ -10,6 +11,8 @@ class MapAndDateSelector:
         self.start_date = None
         self.end_date = None
         self.mode = "RGB"  # Domyślny tryb wyświetlania
+        self.max_cloud_coverage = 50  # Domyślna wartość maksymalnego zachmurzenia (%)
+
 
     def on_map_click(self, event):
         lat, lon = self.map_widget.get_position()
@@ -26,43 +29,76 @@ class MapAndDateSelector:
         self.date_range_label.config(text=f"Zakres dat:\n {self.start_date} do {self.end_date}")
         print(f"Daty zapisane: {self.start_date} - {self.end_date}")
 
+    def reset_mode_buttons(self):
+        self.rgb_button.config(bg="lightgray")
+        self.ndvi_button.config(bg="lightgray")
+        self.ndwi_button.config(bg="lightgray")
+        self.savi_button.config(bg="lightgray")
+
     def set_mode_rgb(self):
         self.mode = "RGB"
+        self.reset_mode_buttons()
         self.rgb_button.config(bg="green")
-        self.ndvi_button.config(bg="lightgray")
         print("Tryb wyświetlania ustawiony na RGB")
 
     def set_mode_ndvi(self):
         self.mode = "NDVI"
+        self.reset_mode_buttons()
         self.ndvi_button.config(bg="green")
-        self.rgb_button.config(bg="lightgray")
         print("Tryb wyświetlania ustawiony na NDVI")
 
+    def set_mode_ndwi(self):
+        self.mode = "NDWI"
+        self.reset_mode_buttons()
+        self.ndwi_button.config(bg="green")
+        print("Tryb wyświetlania ustawiony na NDWI")
+
+    def set_mode_savi(self):
+        self.mode = "SAVI"
+        self.reset_mode_buttons()
+        self.savi_button.config(bg="green")
+        print("Tryb wyświetlania ustawiony na SAVI")
+
+    def set_cloud_coverage(self):
+        try:
+            self.max_cloud_coverage = float(self.cloud_coverage_entry.get())
+            print(f"Maksymalna dopuszczalna wartość zachmurzenia ustawiona na: {self.max_cloud_coverage}%")
+        except ValueError:
+            print("Błąd: Wprowadzono niepoprawną wartość dla zachmurzenia.")
+    
     def start_analysis(self):
         if self.selected_coords and self.start_date and self.end_date:
             print(f"Rozpoczynam analizę dla współrzędnych: {self.selected_coords} i zakresu dat: {self.start_date} - {self.end_date}")
 
             downloader = SatelliteDataDownloader(
-                instance_id='',
-                client_id='',
-                client_secret=''
+                instance_id='f66014dd-14a9-4807-82cc-b188ac4b05ff',
+                client_id='df508090-1f72-49ec-a554-2ac1f63a8ec3',
+                client_secret='gvd666chE5OzcwVNOYaznG7slRu4GO2A'
             )
-
+            
+            downloader.max_cloud_coverage = self.max_cloud_coverage  # Przekazanie maksymalnej wartości zachmurzenia
+            
             lat, lon = self.selected_coords
             bbox = BBox([lon-0.1, lat-0.1, lon+0.1, lat+0.1], crs="EPSG:4326")
 
             downloader.mode = self.mode
 
+            # Pobieranie obrazu
             image, date_range = downloader.download_image(bbox, (self.start_date, self.end_date))
-            downloader.display_image(image, date_range)
+            
+            if image is not None:
+                downloader.display_image(image, date_range)
+            else:
+                print("Nie znaleziono żadnego obrazu spełniającego kryteria zachmurzenia.")
         else:
             print("Błąd: Nie wszystkie dane zostały wprowadzone.")
+
             
     def run(self): 
         root = tk.Tk()
         root.title("Wybór obszaru i daty")
-        root.geometry("1100x700")
-        root.minsize(800, 600)
+        root.geometry("1200x800")
+        root.minsize(1000, 800)
 
         # Main layout configuration
         root.grid_rowconfigure(0, weight=1)
@@ -76,7 +112,7 @@ class MapAndDateSelector:
 
         # Map widget
         self.map_widget = TkinterMapView(root, width=800, height=600)
-        self.map_widget.set_position(52.2297, 21.0122)
+        self.map_widget.set_position(50.0607, 19.9384)
         self.map_widget.set_zoom(10)
         self.map_widget.grid(row=0, column=1, sticky="nsew")
         self.map_widget.bind("<Button-1>", self.on_map_click)
@@ -87,7 +123,8 @@ class MapAndDateSelector:
         self.selected_coords_label.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
 
         # Date selection frame
-        date_frame = tk.LabelFrame(left_panel, text="Wybór zakresu dat", font=("Arial", 12, "bold"), padx=10, pady=10, bg="lightgray")
+        date_frame = tk.LabelFrame(left_panel, text="Wybór zakresu dat", font=
+                                   ("Arial", 12, "bold"), padx=10, pady=10, bg="lightgray")
         date_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
 
         tk.Label(date_frame, text="Data początkowa:", font=("Arial", 12), bg="lightgray").grid(row=0, column=0, padx=5, pady=5)
@@ -134,11 +171,29 @@ class MapAndDateSelector:
         self.ndvi_button = tk.Button(mode_frame, text="NDVI", font=("Arial", 10, "bold"), command=self.set_mode_ndvi, bg="lightgray", relief="raised")
         self.ndvi_button.grid(row=0, column=1, padx=5, pady=5)
 
+        self.ndwi_button = tk.Button(mode_frame, text="NDWI", font=("Arial", 10, "bold"), command=self.set_mode_ndwi, bg="lightgray", relief="raised")
+        self.ndwi_button.grid(row=0, column=2, padx=5, pady=5)
+
+        self.savi_button = tk.Button(mode_frame, text="SAVI", font=("Arial", 10, "bold"), command=self.set_mode_savi, bg="lightgray", relief="raised")
+        self.savi_button.grid(row=0, column=3, padx=5, pady=5)
+
         self.rgb_button.config(bg="green")  # Set RGB button as default active
 
-        # Analysis button
+        # Cloud coverage input
+        cloud_coverage_frame = tk.LabelFrame(left_panel, text="Filtrowanie zachmurzenia", font=("Arial", 12, "bold"), padx=10, pady=10, bg="lightgray")
+        cloud_coverage_frame.grid(row=6, column=0, padx=10, pady=10, sticky="ew")
+
+        tk.Label(cloud_coverage_frame, text="Max. zachmurzenie (%):", font=("Arial", 12), bg="lightgray").grid(row=0, column=0, padx=5, pady=5)
+        self.cloud_coverage_entry = ttk.Entry(cloud_coverage_frame, font=("Arial", 12))
+        self.cloud_coverage_entry.insert(0, "30")  # Domyślna wartość zachmurzenia
+        self.cloud_coverage_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        cloud_button = tk.Button(cloud_coverage_frame, text="Zatwierdź", font=("Arial", 10, "bold"), command=self.set_cloud_coverage, bg="lightblue", relief="raised")
+        cloud_button.grid(row=1, column=0, columnspan=2, pady=5)
+
+        # Analyze button
         analyze_button = tk.Button(left_panel, text="Rozpocznij analizę", font=("Arial", 12, "bold"), command=self.start_analysis, bg="orange", relief="raised")
-        analyze_button.grid(row=6, column=0, padx=10, pady=20, sticky="ew")
+        analyze_button.grid(row=7, column=0, padx=10, pady=20, sticky="ew")
 
         root.mainloop()
 

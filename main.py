@@ -1,6 +1,4 @@
 from map_date_selector import MapAndDateSelector
-from satellite_downloader import SatelliteDataDownloader
-from sentinelhub import BBox
 
 def main():
     selector = MapAndDateSelector()
