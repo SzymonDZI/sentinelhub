@@ -15,66 +15,23 @@ class SatelliteDataDownloader:
             raise ValueError("Instance ID, Client ID, lub Client Secret są nieprawidłowe.")
 
         self.mode = "RGB"  # Domyślny tryb
-        self.max_cloud_coverage = 100  # Maksymalne zachmurzenie w procentach
 
     def download_image(self, bbox, time_interval, resolution=10):
         im_size = bbox_to_dimensions(bbox, resolution=resolution)
 
-        # Evalscript dla oceny zachmurzenia
-        evalscript_cloud = """
-        function setup() {
-            return {
-                input: ["CLP"],
-                output: { bands: 1 }
-            };
-        }
-
-        function evaluatePixel(sample) {
-            return [sample.CLP];
-        }
-        """
-
-        # Pobieranie danych z Sentinel Hub z evalscript dla zachmurzenia
-        request_cloud = SentinelHubRequest(
-            data_folder='data',
-            evalscript=evalscript_cloud,
-            input_data=[
-                SentinelHubRequest.input_data(
-                    data_collection=DataCollection.SENTINEL2_L2A,
-                    time_interval=time_interval
-                )
-            ],
-            responses=[
-                SentinelHubRequest.output_response('default', MimeType.TIFF)
-            ],
-            bbox=bbox,
-            size=im_size,
-            config=self.config
-        )
-
-        cloud_data = request_cloud.get_data()[0]  # Pobranie danych zachmurzenia
-        average_cloud_coverage = np.mean(cloud_data) * 100 / 255.0  # Średnie zachmurzenie w procentach
-
-        if average_cloud_coverage > self.max_cloud_coverage:
-            print(f"Odrzucono zdjęcie z zachmurzeniem {average_cloud_coverage:.2f}% (limit: {self.max_cloud_coverage}%)")
-            return None, None
-
-        # Evalscript dla wybranego trybu (RGB, NDVI, NDWI, SAVI)
-        evalscript_rgb = """
-        function setup() {
-            return {
-                input: ["B04", "B03", "B02"],
-                output: { bands: 3 }
-            };
-        }
-
-        function evaluatePixel(sample) {
-            return [2.5 * sample.B04, 2.5 * sample.B03, 2.5 * sample.B02];
-        }
-        """
-
-        evalscript = evalscript_rgb  # Domyślny tryb RGB
-        if self.mode == "NDVI":
+        if self.mode == "RGB":
+            evalscript = """
+            function setup() {
+                return {
+                    input: ["B04", "B03", "B02"],
+                    output: { bands: 3 }
+                };
+            }
+            function evaluatePixel(sample) {
+                return [2.5 * sample.B04, 2.5 * sample.B03, 2.5 * sample.B02];
+            }
+            """
+        elif self.mode == "NDVI":
             evalscript = """
             function setup() {
                 return {
@@ -82,7 +39,6 @@ class SatelliteDataDownloader:
                     output: { bands: 1 }
                 };
             }
-
             function evaluatePixel(sample) {
                 let ndvi = (sample.B08 - sample.B04) / (sample.B08 + sample.B04);
                 return [ndvi];
@@ -96,7 +52,6 @@ class SatelliteDataDownloader:
                     output: { bands: 1 }
                 };
             }
-
             function evaluatePixel(sample) {
                 let ndwi = (sample.B03 - sample.B08) / (sample.B03 + sample.B08);
                 return [ndwi];
@@ -110,20 +65,20 @@ class SatelliteDataDownloader:
                     output: { bands: 1 }
                 };
             }
-
             function evaluatePixel(sample) {
-                let savi = ((sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.428)) * 1.428;
+                let savi = ((sample.B08 - sample.B04) / (sample.B08 + sample.B04 + 0.5)) * 1.5;
                 return [savi];
             }
             """
 
-        request_image = SentinelHubRequest(
+        request = SentinelHubRequest(
             data_folder='data',
             evalscript=evalscript,
             input_data=[
                 SentinelHubRequest.input_data(
                     data_collection=DataCollection.SENTINEL2_L2A,
-                    time_interval=time_interval
+                    time_interval=time_interval,
+                    other_args={"dataFilter": {"mosaickingOrder": "leastCC"}}
                 )
             ],
             responses=[
@@ -134,28 +89,70 @@ class SatelliteDataDownloader:
             config=self.config
         )
 
-        image = request_image.get_data()[0]
+        image = request.get_data()[0]
         if self.mode == "RGB":
             return np.clip(image * (2.5 / 200), 0, 1), time_interval
         elif self.mode in ["NDVI", "NDWI", "SAVI"]:
             return np.clip(image / 100, 0, 1), time_interval
 
-    def fetch_least_cloudy_image(self, bbox, time_intervals, resolution=10):
+    def download_all_bands(self, bbox, time_interval, resolution=10):
+        evalscript_all_bands = """
+        //VERSION=3
+        function setup() {
+            return {
+                input: [{
+                    bands: ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B10", "B11", "B12"],
+                    units: "DN"
+                }],
+                output: {
+                    bands: 13,
+                    sampleType: "INT16"
+                }
+            };
+        }
+
+        function evaluatePixel(sample) {
+            return [sample.B01,
+                    sample.B02,
+                    sample.B03,
+                    sample.B04,
+                    sample.B05,
+                    sample.B06,
+                    sample.B07,
+                    sample.B08,
+                    sample.B8A,
+                    sample.B09,
+                    sample.B10,
+                    sample.B11,
+                    sample.B12];
+        }
         """
-        Iteruje po dostępnych interwałach czasowych, aż znajdzie zdjęcie o dopuszczalnym zachmurzeniu.
-        """
-        for time_interval in time_intervals:
-            image, date_range = self.download_image(bbox, time_interval, resolution)
-            if image is not None:
-                print(f"Wybrano zdjęcie z daty {date_range} z akceptowalnym zachmurzeniem.")
-                return image, date_range
-        print("Nie znaleziono zdjęcia z akceptowalnym zachmurzeniem.")
-        return None, None
+
+        im_size = bbox_to_dimensions(bbox, resolution=resolution)
+
+        request_all_bands = SentinelHubRequest(
+            evalscript=evalscript_all_bands,
+            input_data=[
+                SentinelHubRequest.input_data(
+                    data_collection=DataCollection.SENTINEL2_L1C,
+                    time_interval=time_interval,
+                    other_args={"dataFilter": {"mosaickingOrder": "leastCC"}}
+                )
+            ],
+            responses=[SentinelHubRequest.output_response("default", MimeType.TIFF)],
+            bbox=bbox,
+            size=im_size,
+            config=self.config
+        )
+
+        # all_bands_response = request_all_bands.get_data()[0]
+        # print("Pobrano wszystkie pasma Sentinel-2.")
+        # return all_bands_response
 
     def save_image(self, image, filename="output_image.tiff"):
         os.makedirs("output", exist_ok=True)
         filepath = os.path.join("output", filename)
-        plt.imsave(filepath, image[..., :3], cmap=None)  # Zapisujemy tylko kanały RGB
+        plt.imsave(filepath, image, cmap="RdYlGn" if self.mode == "NDVI" else None)
         print(f"Zdjęcie zapisano jako {filepath}")
 
     def display_image(self, image, date_range):

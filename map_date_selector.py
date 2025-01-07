@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import ttk
 from tkintermapview import TkinterMapView
 from tkcalendar import DateEntry
 from satellite_downloader import SatelliteDataDownloader
@@ -11,8 +10,6 @@ class MapAndDateSelector:
         self.start_date = None
         self.end_date = None
         self.mode = "RGB"  # Domyślny tryb wyświetlania
-        self.max_cloud_coverage = 50  # Domyślna wartość maksymalnego zachmurzenia (%)
-
 
     def on_map_click(self, event):
         lat, lon = self.map_widget.get_position()
@@ -59,13 +56,6 @@ class MapAndDateSelector:
         self.savi_button.config(bg="green")
         print("Tryb wyświetlania ustawiony na SAVI")
 
-    def set_cloud_coverage(self):
-        try:
-            self.max_cloud_coverage = float(self.cloud_coverage_entry.get())
-            print(f"Maksymalna dopuszczalna wartość zachmurzenia ustawiona na: {self.max_cloud_coverage}%")
-        except ValueError:
-            print("Błąd: Wprowadzono niepoprawną wartość dla zachmurzenia.")
-    
     def start_analysis(self):
         if self.selected_coords and self.start_date and self.end_date:
             print(f"Rozpoczynam analizę dla współrzędnych: {self.selected_coords} i zakresu dat: {self.start_date} - {self.end_date}")
@@ -75,24 +65,16 @@ class MapAndDateSelector:
                 client_id='df508090-1f72-49ec-a554-2ac1f63a8ec3',
                 client_secret='gvd666chE5OzcwVNOYaznG7slRu4GO2A'
             )
-            
-            downloader.max_cloud_coverage = self.max_cloud_coverage  # Przekazanie maksymalnej wartości zachmurzenia
-            
+
             lat, lon = self.selected_coords
             bbox = BBox([lon-0.1, lat-0.1, lon+0.1, lat+0.1], crs="EPSG:4326")
 
             downloader.mode = self.mode
 
-            # Pobieranie obrazu
             image, date_range = downloader.download_image(bbox, (self.start_date, self.end_date))
-            
-            if image is not None:
-                downloader.display_image(image, date_range)
-            else:
-                print("Nie znaleziono żadnego obrazu spełniającego kryteria zachmurzenia.")
+            downloader.display_image(image, date_range)
         else:
             print("Błąd: Nie wszystkie dane zostały wprowadzone.")
-
             
     def run(self): 
         root = tk.Tk()
@@ -178,18 +160,6 @@ class MapAndDateSelector:
         self.savi_button.grid(row=0, column=3, padx=5, pady=5)
 
         self.rgb_button.config(bg="green")  # Set RGB button as default active
-
-        # Cloud coverage input
-        cloud_coverage_frame = tk.LabelFrame(left_panel, text="Filtrowanie zachmurzenia", font=("Arial", 12, "bold"), padx=10, pady=10, bg="lightgray")
-        cloud_coverage_frame.grid(row=6, column=0, padx=10, pady=10, sticky="ew")
-
-        tk.Label(cloud_coverage_frame, text="Max. zachmurzenie (%):", font=("Arial", 12), bg="lightgray").grid(row=0, column=0, padx=5, pady=5)
-        self.cloud_coverage_entry = ttk.Entry(cloud_coverage_frame, font=("Arial", 12))
-        self.cloud_coverage_entry.insert(0, "30")  # Domyślna wartość zachmurzenia
-        self.cloud_coverage_entry.grid(row=0, column=1, padx=5, pady=5)
-
-        cloud_button = tk.Button(cloud_coverage_frame, text="Zatwierdź", font=("Arial", 10, "bold"), command=self.set_cloud_coverage, bg="lightblue", relief="raised")
-        cloud_button.grid(row=1, column=0, columnspan=2, pady=5)
 
         # Analyze button
         analyze_button = tk.Button(left_panel, text="Rozpocznij analizę", font=("Arial", 12, "bold"), command=self.start_analysis, bg="orange", relief="raised")
