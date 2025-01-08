@@ -1,5 +1,13 @@
-import tkinter as tk
-from sentinelhub import SHConfig, SentinelHubRequest, DataCollection, MimeType, bbox_to_dimensions, BBox
+from sentinelhub import (
+    SHConfig,
+    CRS,
+    BBox,
+    DataCollection,
+    MimeType,
+    SentinelHubRequest,
+    SentinelHubCatalog,
+    bbox_to_dimensions
+)
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -16,6 +24,19 @@ class SatelliteDataDownloader:
 
         self.mode = "RGB"  # Domyślny tryb
 
+    def get_image_metadata(self, bbox, time_interval):
+        catalog = SentinelHubCatalog(self.config)
+        search_iterator = catalog.search(
+            DataCollection.SENTINEL2_L2A,
+            bbox=BBox(bbox, CRS.WGS84),
+            time=time_interval,
+            fields={"include": ["properties.datetime"], "exclude": []}
+        )
+        metadata = list(search_iterator)
+        if not metadata:
+            raise ValueError("Nie znaleziono żadnych danych dla podanych parametrów.")
+        return metadata
+    
     def download_image(self, bbox, time_interval, resolution=10):
         im_size = bbox_to_dimensions(bbox, resolution=resolution)
 
@@ -53,7 +74,7 @@ class SatelliteDataDownloader:
                 };
             }
             function evaluatePixel(sample) {
-                let ndwi = (sample.B03 - sample.B08) / (sample.B03 + sample.B08);
+                let ndwi = (1 * sample.B03 - sample.B08) / (sample.B03 + 1 * sample.B08);
                 return [ndwi];
             }
             """
@@ -82,18 +103,23 @@ class SatelliteDataDownloader:
                 )
             ],
             responses=[
-                SentinelHubRequest.output_response('default', MimeType.TIFF)
+                SentinelHubRequest.output_response('default', MimeType.TIFF),
             ],
             bbox=bbox,
             size=im_size,
             config=self.config
         )
 
+        metadata = self.get_image_metadata(bbox, time_interval)
+        timestamp = metadata[0]['properties']['datetime']  
+        print(f"Zdjęcie wykonano: {timestamp}")
         image = request.get_data()[0]
         if self.mode == "RGB":
-            return np.clip(image * (2.5 / 200), 0, 1), time_interval
+            return np.clip(image * (2.5 / 200), 0, 1), time_interval, timestamp
         elif self.mode in ["NDVI", "NDWI", "SAVI"]:
-            return np.clip(image / 100, 0, 1), time_interval
+            return np.clip(image / 200, 0, 1), time_interval, timestamp
+        
+          
 
     def download_all_bands(self, bbox, time_interval, resolution=10):
         evalscript_all_bands = """
@@ -155,7 +181,7 @@ class SatelliteDataDownloader:
         plt.imsave(filepath, image, cmap="RdYlGn" if self.mode == "NDVI" else None)
         print(f"Zdjęcie zapisano jako {filepath}")
 
-    def display_image(self, image, date_range):
+    def display_image(self, image, date_range, timestamp):
         # Sprawdź wymiary obrazu
         height, width, _ = image.shape if len(image.shape) == 3 else (image.shape[0], image.shape[1], 1)
         if height != width:
@@ -175,7 +201,8 @@ class SatelliteDataDownloader:
         else:
             ax.imshow(image)
         ax.axis("off")
-        ax.set_title(f"Zdjęcie Satelitarne ({self.mode})\nZakres dat: {date_range[0]} - {date_range[1]}", fontsize=14)
+        timestamp = timestamp.replace("T", " ").replace("Z", "")
+        ax.set_title(f"Zdjęcie Satelitarne ({self.mode})\nZdjęcie wykonano: {timestamp}", fontsize=14)
         plt.show()
 
 

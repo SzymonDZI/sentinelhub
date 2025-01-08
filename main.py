@@ -8,9 +8,5 @@ def main():
         print("Nie wybrano współrzędnych lub zakresu dat.")
         return
 
-    # Debugowanie współrzędnych
-    print(f"Współrzędne: {selector.selected_coords}")
-    print(f"Daty: {selector.start_date} do {selector.end_date}")
-
 if __name__ == "__main__":
     main()

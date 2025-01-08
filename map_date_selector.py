@@ -56,6 +56,23 @@ class MapAndDateSelector:
         self.savi_button.config(bg="green")
         print("Tryb wyświetlania ustawiony na SAVI")
 
+    def open_band_selection(self):
+        band_window = tk.Toplevel()
+        band_window.title("Wybór Pasm")
+        band_window.geometry("300x400")
+        band_window.minsize(1000, 800)
+
+        bands = ["sample.B01", "sample.B02", "sample.B03", "sample.B04", "sample.B05", "sample.B06", "sample.B07", 
+                 "sample.B08", "sample.B8A", "sample.B09", "sample.B10", "sample.B11", "sample.B12"]
+
+        for band in bands:
+            band_button = tk.Button(band_window, text=band, font=("Arial", 10), command=lambda b=band: self.set_band(b))
+            band_button.pack(padx=10, pady=5, fill="x")
+
+    def set_band(self, band):
+        self.mode = band
+        print(f"Wybrano pasmo: {band}")
+
     def start_analysis(self):
         if self.selected_coords and self.start_date and self.end_date:
             print(f"Rozpoczynam analizę dla współrzędnych: {self.selected_coords} i zakresu dat: {self.start_date} - {self.end_date}")
@@ -70,17 +87,19 @@ class MapAndDateSelector:
             bbox = BBox([lon-0.1, lat-0.1, lon+0.1, lat+0.1], crs="EPSG:4326")
 
             downloader.mode = self.mode
-
-            image, date_range = downloader.download_image(bbox, (self.start_date, self.end_date))
-            downloader.display_image(image, date_range)
+            image, date_range, timestamp = downloader.download_image(bbox, (self.start_date, self.end_date))
+            downloader.display_image(image, date_range, timestamp)
         else:
             print("Błąd: Nie wszystkie dane zostały wprowadzone.")
-            
+
     def run(self): 
         root = tk.Tk()
         root.title("Wybór obszaru i daty")
         root.geometry("1200x800")
         root.minsize(1000, 800)
+
+        # Podłącz zdarzenie do funkcji `resize_map`
+        root.bind("<Configure>", self.resize_map)
 
         # Main layout configuration
         root.grid_rowconfigure(0, weight=1)
@@ -105,8 +124,7 @@ class MapAndDateSelector:
         self.selected_coords_label.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
 
         # Date selection frame
-        date_frame = tk.LabelFrame(left_panel, text="Wybór zakresu dat", font=
-                                   ("Arial", 12, "bold"), padx=10, pady=10, bg="lightgray")
+        date_frame = tk.LabelFrame(left_panel, text="Wybór zakresu dat", font=("Arial", 12, "bold"), padx=10, pady=10, bg="lightgray")
         date_frame.grid(row=1, column=0, padx=10, pady=10, sticky="ew")
 
         tk.Label(date_frame, text="Data początkowa:", font=("Arial", 12), bg="lightgray").grid(row=0, column=0, padx=5, pady=5)
@@ -158,6 +176,9 @@ class MapAndDateSelector:
 
         self.savi_button = tk.Button(mode_frame, text="SAVI", font=("Arial", 10, "bold"), command=self.set_mode_savi, bg="lightgray", relief="raised")
         self.savi_button.grid(row=0, column=3, padx=5, pady=5)
+
+        create_button = tk.Button(mode_frame, text="Stwórz", font=("Arial", 10, "bold"), command=self.open_band_selection, bg="lightgray", relief="raised")
+        create_button.grid(row=0, column=4, padx=5, pady=5)
 
         self.rgb_button.config(bg="green")  # Set RGB button as default active
 
