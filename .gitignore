@@ -1,3 +1,5 @@
 # Ignorowanie katalogu __pycache__
 __pycache__/
 *.py[cod]
+__pycache__/satellite_downloader.cpython-310.pyc
+__pycache__/map_date_selector.cpython-310.pyc

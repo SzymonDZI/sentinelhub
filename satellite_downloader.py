@@ -4,6 +4,7 @@ from sentinelhub import (
     BBox,
     DataCollection,
     MimeType,
+    MosaickingOrder,
     SentinelHubRequest,
     SentinelHubCatalog,
     bbox_to_dimensions
@@ -30,7 +31,8 @@ class SatelliteDataDownloader:
             DataCollection.SENTINEL2_L2A,
             bbox=BBox(bbox, CRS.WGS84),
             time=time_interval,
-            fields={"include": ["properties.datetime"], "exclude": []}
+            filter="eo:cloud_cover < 100",
+            fields={"include": ["id", "properties.datetime", "properties.eo:cloud_cover"], "exclude": []},
         )
         metadata = list(search_iterator)
         if not metadata:
@@ -49,7 +51,7 @@ class SatelliteDataDownloader:
                 };
             }
             function evaluatePixel(sample) {
-                return [2.5 * sample.B04, 2.5 * sample.B03, 2.5 * sample.B02];
+                return [1 * sample.B04, 1 * sample.B03, 1 * sample.B02];
             }
             """
         elif self.mode == "NDVI":
@@ -100,6 +102,7 @@ class SatelliteDataDownloader:
                     data_collection=DataCollection.SENTINEL2_L2A,
                     time_interval=time_interval,
                     other_args={"dataFilter": {"mosaickingOrder": "leastCC"}}
+
                 )
             ],
             responses=[
@@ -111,7 +114,11 @@ class SatelliteDataDownloader:
         )
 
         metadata = self.get_image_metadata(bbox, time_interval)
-        timestamp = metadata[0]['properties']['datetime']  
+        print(metadata)
+        # Znajdowanie elementu z najmniejszym zachmurzeniem
+        best_metadata = min(metadata, key=lambda x: x['properties']['eo:cloud_cover'])
+        # Pobieranie daty i czasu
+        timestamp = best_metadata['properties']['datetime']
         print(f"Zdjęcie wykonano: {timestamp}")
         image = request.get_data()[0]
         if self.mode == "RGB":
@@ -120,7 +127,7 @@ class SatelliteDataDownloader:
             return np.clip(image / 200, 0, 1), time_interval, timestamp
         
           
-
+#do zrobienia, na razie nie działa
     def download_all_bands(self, bbox, time_interval, resolution=10):
         evalscript_all_bands = """
         //VERSION=3
@@ -163,6 +170,7 @@ class SatelliteDataDownloader:
                     data_collection=DataCollection.SENTINEL2_L1C,
                     time_interval=time_interval,
                     other_args={"dataFilter": {"mosaickingOrder": "leastCC"}}
+
                 )
             ],
             responses=[SentinelHubRequest.output_response("default", MimeType.TIFF)],
@@ -174,6 +182,7 @@ class SatelliteDataDownloader:
         # all_bands_response = request_all_bands.get_data()[0]
         # print("Pobrano wszystkie pasma Sentinel-2.")
         # return all_bands_response
+#nie działa aż do tego momentu, działa tylko wyświetlanie
 
     def save_image(self, image, filename="output_image.tiff"):
         os.makedirs("output", exist_ok=True)
