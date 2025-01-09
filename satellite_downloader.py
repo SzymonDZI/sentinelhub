@@ -2,15 +2,18 @@ from sentinelhub import (
     SHConfig,
     CRS,
     BBox,
+    DownloadRequest,
     DataCollection,
     MimeType,
     MosaickingOrder,
     SentinelHubRequest,
     SentinelHubCatalog,
+    SentinelHubDownloadClient,
     bbox_to_dimensions
 )
 import numpy as np
 import matplotlib.pyplot as plt
+from utils import plot_image
 import os
 
 class SatelliteDataDownloader:
@@ -41,7 +44,7 @@ class SatelliteDataDownloader:
     
     def download_image(self, bbox, time_interval, resolution=10):
         im_size = bbox_to_dimensions(bbox, resolution=resolution)
-
+        
         if self.mode == "RGB":
             evalscript = """
             function setup() {
@@ -76,7 +79,7 @@ class SatelliteDataDownloader:
                 };
             }
             function evaluatePixel(sample) {
-                let ndwi = (1 * sample.B03 - sample.B08) / (sample.B03 + 1 * sample.B08);
+                let ndwi = (1.5 * sample.B03 - sample.B08) / (sample.B03 + 1.5 * sample.B08);
                 return [ndwi];
             }
             """
@@ -93,7 +96,6 @@ class SatelliteDataDownloader:
                 return [savi];
             }
             """
-
         request = SentinelHubRequest(
             data_folder='data',
             evalscript=evalscript,
@@ -113,6 +115,7 @@ class SatelliteDataDownloader:
             config=self.config
         )
 
+        
         metadata = self.get_image_metadata(bbox, time_interval)
         print(metadata)
         # Znajdowanie elementu z najmniejszym zachmurzeniem
@@ -120,70 +123,15 @@ class SatelliteDataDownloader:
         # Pobieranie daty i czasu
         timestamp = best_metadata['properties']['datetime']
         print(f"Zdjęcie wykonano: {timestamp}")
-        image = request.get_data()[0]
+        image = request.get_data()
+        factor = request.get_data()
+        print(image[0].shape)
+        print(image[0][1][1])
         if self.mode == "RGB":
-            return np.clip(image * (2.5 / 200), 0, 1), time_interval, timestamp
+            return np.clip(image[0] * (2.5 / 200), 0, 1), time_interval, timestamp
         elif self.mode in ["NDVI", "NDWI", "SAVI"]:
-            return np.clip(image / 200, 0, 1), time_interval, timestamp
+            return np.clip(image[0] / 200, 0, 1), time_interval, timestamp
         
-          
-#do zrobienia, na razie nie działa
-    def download_all_bands(self, bbox, time_interval, resolution=10):
-        evalscript_all_bands = """
-        //VERSION=3
-        function setup() {
-            return {
-                input: [{
-                    bands: ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B10", "B11", "B12"],
-                    units: "DN"
-                }],
-                output: {
-                    bands: 13,
-                    sampleType: "INT16"
-                }
-            };
-        }
-
-        function evaluatePixel(sample) {
-            return [sample.B01,
-                    sample.B02,
-                    sample.B03,
-                    sample.B04,
-                    sample.B05,
-                    sample.B06,
-                    sample.B07,
-                    sample.B08,
-                    sample.B8A,
-                    sample.B09,
-                    sample.B10,
-                    sample.B11,
-                    sample.B12];
-        }
-        """
-
-        im_size = bbox_to_dimensions(bbox, resolution=resolution)
-
-        request_all_bands = SentinelHubRequest(
-            evalscript=evalscript_all_bands,
-            input_data=[
-                SentinelHubRequest.input_data(
-                    data_collection=DataCollection.SENTINEL2_L1C,
-                    time_interval=time_interval,
-                    other_args={"dataFilter": {"mosaickingOrder": "leastCC"}}
-
-                )
-            ],
-            responses=[SentinelHubRequest.output_response("default", MimeType.TIFF)],
-            bbox=bbox,
-            size=im_size,
-            config=self.config
-        )
-
-        # all_bands_response = request_all_bands.get_data()[0]
-        # print("Pobrano wszystkie pasma Sentinel-2.")
-        # return all_bands_response
-#nie działa aż do tego momentu, działa tylko wyświetlanie
-
     def save_image(self, image, filename="output_image.tiff"):
         os.makedirs("output", exist_ok=True)
         filepath = os.path.join("output", filename)
@@ -193,12 +141,14 @@ class SatelliteDataDownloader:
     def display_image(self, image, date_range, timestamp):
         # Sprawdź wymiary obrazu
         height, width, _ = image.shape if len(image.shape) == 3 else (image.shape[0], image.shape[1], 1)
+
         if height != width:
             # Dodaj marginesy, aby zrobić obraz kwadratowy
             size = min(height, width)
             start_y = (height - size) // 2
             start_x = (width - size) // 2
             image = image[start_y:start_y + size, start_x:start_x + size]
+
 
         # Wyświetl obraz z legendą
         fig, ax = plt.subplots(figsize=(10, 10))
@@ -208,7 +158,7 @@ class SatelliteDataDownloader:
             cbar = fig.colorbar(cax, ax=ax, orientation='vertical', shrink=0.8, pad=0.05)
             cbar.set_label(f"{self.mode} wartość", fontsize=12)
         else:
-            ax.imshow(image)
+            ax.imshow(image, cmap='viridis')
         ax.axis("off")
         timestamp = timestamp.replace("T", " ").replace("Z", "")
         ax.set_title(f"Zdjęcie Satelitarne ({self.mode})\nZdjęcie wykonano: {timestamp}", fontsize=14)
